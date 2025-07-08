@@ -16,40 +16,30 @@ runs:
   steps:
     - name: "Install Tracer Client"
       shell: bash
-      continue-on-error: true
       run: |
         set -e
-
-        # Pick shell config file based on OS and available files
-        if [ "$(uname)" = "Darwin" ]; then
-          SHELL_RC="$HOME/.zshrc"
-        elif [ -n "$ZSH_VERSION" ] || [ -f "$HOME/.zshrc" ]; then
-          SHELL_RC="$HOME/.zshrc"
-        else
-          SHELL_RC="$HOME/.bashrc"
-        fi
 
         # Install Tracer Client with or without user ID
         if [ -n "${{ inputs.tracer_user_id }}" ]; then
           export TRACER_USER_ID="${{ inputs.tracer_user_id }}"
         fi
-        curl -sSL https://install.tracer.cloud/ | bash
 
-        # Add Tracer to PATH in shell config for future logins
-        if ! grep -q 'export PATH="$PATH:$HOME/.tracerbio/bin"' "$SHELL_RC"; then
-          echo 'export PATH="$PATH:$HOME/.tracerbio/bin"' >> "$SHELL_RC"
-        fi
+        # Use sudo for installation in GitHub Actions environment
+        curl -sSL https://install.tracer.cloud/ | sudo bash
 
         # Add Tracer to PATH for all subsequent workflow steps
-        echo "$HOME/.tracerbio/bin" >> $GITHUB_PATH
+        echo "/root/.tracerbio/bin" | sudo tee -a $GITHUB_PATH
 
-        # Source the shell config to refresh PATH for current session
-        source "$SHELL_RC"
-
-        # Also refresh PATH for current session in case shell is non-interactive
-        export PATH="$HOME/.tracerbio/bin:$PATH"
+        # Also set PATH for current step
+        export PATH="/root/.tracerbio/bin:$PATH"
 
     - name: "Verify Tracer Client"
       shell: bash
       run: |
-        tracer info
+        # Verify installation
+        if [ -f "/root/.tracerbio/bin/tracer" ]; then
+          sudo /root/.tracerbio/bin/tracer info
+        else
+          echo "Tracer binary not found at expected location"
+          exit 1
+        fi
