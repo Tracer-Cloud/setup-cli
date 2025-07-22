@@ -1,6 +1,6 @@
 name: "Install Tracer Client"
 author: "Vaibhav Upreti"
-description: "Install Tracer Client in your workflow"
+description: "GitHub Action to install the Tracer CLI client for your workflows."
 
 branding:
   color: "blue"
@@ -8,8 +8,16 @@ branding:
 
 inputs:
   tracer_user_id:
-    description: "Tracer User ID"
+    description: "Tracer User ID (optional, for personalized setup)"
     required: false
+  cli_branch:
+    description: "Install Tracer from a custom CLI branch (must be a PR branch)"
+    required: false
+    default: "main"
+  installer_branch:
+    description: "Use installer from a custom branch (must be a PR branch)"
+    required: false
+    default: "main"
 
 runs:
   using: "composite"
@@ -17,29 +25,27 @@ runs:
     - name: "Install Tracer Client"
       shell: bash
       run: |
-        set -e
+        set -euo pipefail
 
-        # Install Tracer Client with or without user ID
         if [ -n "${{ inputs.tracer_user_id }}" ]; then
           export TRACER_USER_ID="${{ inputs.tracer_user_id }}"
+          echo "Using TRACER_USER_ID: $TRACER_USER_ID"
         fi
 
-        # Use sudo for installation in GitHub Actions environment
-        curl -sSL https://install.tracer.cloud/ | sudo bash
+        CLI_BRANCH_ARG="CLI_BRANCH=\"${{ inputs.cli_branch }}\""
+        INS_BRANCH_ARG="INS_BRANCH=\"${{ inputs.installer_branch }}\""
+        echo "Using CLI branch: ${{ inputs.cli_branch }}"
+        echo "Using installer branch: ${{ inputs.installer_branch }}"
 
-        # Add Tracer to PATH for all subsequent workflow steps
-        echo "/root/.tracerbio/bin" | sudo tee -a $GITHUB_PATH
+        eval "curl -sSL https://install.tracer.cloud | $CLI_BRANCH_ARG $INS_BRANCH_ARG sh"
 
-        # Also set PATH for current step
-        export PATH="/root/.tracerbio/bin:$PATH"
+        export PATH="$HOME/.tracer/bin:$HOME/.local/bin:$PATH"
 
-    - name: "Verify Tracer Client"
-      shell: bash
-      run: |
         # Verify installation
-        if [ -f "/root/.tracerbio/bin/tracer" ]; then
-          sudo /root/.tracerbio/bin/tracer info
+        if command -v tracer >/dev/null 2>&1; then
+          VERSION=$(tracer --version)
+          echo "Tracer installed successfully: $VERSION"
         else
-          echo "Tracer binary not found at expected location"
+          echo "Tracer installation failed or not in PATH"
           exit 1
         fi
